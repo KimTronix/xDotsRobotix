@@ -7,7 +7,7 @@ import time
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
-PORT = '/dev/cu.usbserial-1130'
+PORT = '/dev/cu.usbserial-120'
 BAUD_RATE = 115200
 ser = None
 
@@ -138,30 +138,75 @@ def handle_get_sequences():
     seqs = load_sequences()
     emit('sequences_list', {'sequences': list(seqs.keys())})
 
+playing_sequence = False
+
 @socketio.on('play_sequence')
 def handle_play_sequence(data):
+    global playing_sequence
     name = data.get('name')
+    loops = int(data.get('loops', -1))
     if not name: return
     seqs = load_sequences()
     if name in seqs:
         seq = seqs[name]
-        emit('serial_rx', {'line': f'[SYSTEM] Playing sequence "{name}"...'})
-        socketio.start_background_task(play_task, seq)
+        playing_sequence = True
+        socketio.start_background_task(play_task, seq, loops, name)
 
-def play_task(seq):
-    for step in seq:
-        delay = step.get('delay', 0) / 1000.0
-        if delay > 0:
-            time.sleep(delay)
-        cmd = step.get('cmd')
-        if cmd is not None:
-            s = connect()
-            if s:
-                try:
-                    s.write(bytes([int(cmd)]))
-                except Exception:
-                    pass
-    socketio.emit('serial_rx', {'line': '[SYSTEM] Sequence playback complete.'})
+@socketio.on('stop_sequence')
+def handle_stop_sequence():
+    global playing_sequence
+    playing_sequence = False
+    emit('serial_rx', {'line': '[SYSTEM] Halting playback...'})
+
+def play_task(seq, loops, name):
+    global playing_sequence
+    count = 0
+    while playing_sequence and (loops <= 0 or count < loops):
+        s = connect()
+        if not s: break
+        
+        # 1. Return to Home Position
+        socketio.emit('serial_rx', {'line': f'[SYSTEM] Returning to HOME (Loop {count+1})...'})
+        try: s.write(bytes([13]))
+        except: pass
+        
+        # Wait 4 seconds for arm to physically reach home
+        for _ in range(40):
+            if not playing_sequence: break
+            time.sleep(0.1)
+            
+        if not playing_sequence: break
+
+        # 2. Play the Sequence
+        socketio.emit('serial_rx', {'line': f'[SYSTEM] Executing sequence "{name}"...'})
+        for step in seq:
+            if not playing_sequence: break
+            delay = step.get('delay', 0) / 1000.0
+            if delay > 0:
+                # Sleep in small chunks to remain responsive to stop signal
+                chunks = int(delay / 0.1)
+                for _ in range(chunks):
+                    if not playing_sequence: break
+                    time.sleep(0.1)
+                if playing_sequence:
+                    time.sleep(delay - (chunks * 0.1))
+            
+            if not playing_sequence: break
+            cmd = step.get('cmd')
+            if cmd is not None:
+                try: s.write(bytes([int(cmd)]))
+                except: pass
+        
+        count += 1
+
+    # 3. Final Return to Home
+    if s and playing_sequence:
+        socketio.emit('serial_rx', {'line': '[SYSTEM] Sequence complete. Returning HOME...'})
+        try: s.write(bytes([13]))
+        except: pass
+
+    playing_sequence = False
+    socketio.emit('serial_rx', {'line': '[SYSTEM] Playback stopped.'})
 
 
 if __name__ == '__main__':

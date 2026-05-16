@@ -28,12 +28,17 @@
   int index = 0;
   int dataIn;
   int m = 0;
+  int currentDir = 0;
 
   void setup() {
     LeftFrontWheel.setMaxSpeed(3000);
+    LeftFrontWheel.setAcceleration(800);
     LeftBackWheel.setMaxSpeed(3000);
+    LeftBackWheel.setAcceleration(800);
     RightFrontWheel.setMaxSpeed(3000);
+    RightFrontWheel.setAcceleration(800);
     RightBackWheel.setMaxSpeed(3000);
+    RightBackWheel.setAcceleration(800);
     
     pinMode(led, OUTPUT);
     
@@ -83,10 +88,10 @@
     }
 
     // Constant drivetrain execution (for smooth stepping)
-    LeftFrontWheel.runSpeed();
-    LeftBackWheel.runSpeed();
-    RightFrontWheel.runSpeed();
-    RightBackWheel.runSpeed();
+    LeftFrontWheel.run();
+    LeftBackWheel.run();
+    RightFrontWheel.run();
+    RightBackWheel.run();
 
     checkBattery();
   }
@@ -102,19 +107,28 @@
 
     for(int i=0; i<6; i++) tarP[i] = constrain(tarP[i], 0, 180);
 
-    // Drivetrain Switch
-    switch(m) {
-      case 2: moveForward(); break;
-      case 7: moveBackward(); break;
-      case 4: moveSidewaysLeft(); break;
-      case 5: moveSidewaysRight(); break;
-      case 1: moveLeftForward(); break;
-      case 3: moveRightForward(); break;
-      case 6: moveLeftBackward(); break;
-      case 8: moveRightBackward(); break;
-      case 9: rotateLeft(); break;
-      case 10: rotateRight(); break;
-      case 0: stopMoving(); break;
+    // Drivetrain Switch with Acceleration protection
+    if (m >= 1 && m <= 10) {
+      if (m != currentDir) {
+        currentDir = m;
+        switch(m) {
+          case 2: moveForward(); break;
+          case 7: moveBackward(); break;
+          case 4: moveSidewaysLeft(); break;
+          case 5: moveSidewaysRight(); break;
+          case 1: moveLeftForward(); break;
+          case 3: moveRightForward(); break;
+          case 6: moveLeftBackward(); break;
+          case 8: moveRightBackward(); break;
+          case 9: rotateLeft(); break;
+          case 10: rotateRight(); break;
+        }
+      }
+    } else if (m == 0) {
+      if (currentDir != 0) {
+        currentDir = 0;
+        stopMoving();
+      }
     }
 
     // Save Step logic
@@ -128,6 +142,7 @@
       m = 0; // Reset mode
     }
 
+    if (m == 13) { setTargets(90, 100, 120, 95, 60, 80); m = 0; }
     if (m == 14) runSteps();
     if (m == 15) runDemo();
   }
@@ -230,58 +245,73 @@
   }
 
   void moveForward() {
-    LeftFrontWheel.setSpeed(wheelSpeed); LeftBackWheel.setSpeed(wheelSpeed);
-    RightFrontWheel.setSpeed(wheelSpeed); RightBackWheel.setSpeed(wheelSpeed);
+    setAllMaxSpeed(wheelSpeed);
+    LeftFrontWheel.move(1000000); LeftBackWheel.move(1000000);
+    RightFrontWheel.move(1000000); RightBackWheel.move(1000000);
   }
 
   void moveBackward() {
-    LeftFrontWheel.setSpeed(-wheelSpeed); LeftBackWheel.setSpeed(-wheelSpeed);
-    RightFrontWheel.setSpeed(-wheelSpeed); RightBackWheel.setSpeed(-wheelSpeed);
+    setAllMaxSpeed(wheelSpeed);
+    LeftFrontWheel.move(-1000000); LeftBackWheel.move(-1000000);
+    RightFrontWheel.move(-1000000); RightBackWheel.move(-1000000);
   }
 
   void moveSidewaysRight() {
-    LeftFrontWheel.setSpeed(wheelSpeed); LeftBackWheel.setSpeed(-wheelSpeed);
-    RightFrontWheel.setSpeed(-wheelSpeed); RightBackWheel.setSpeed(wheelSpeed);
+    setAllMaxSpeed(wheelSpeed);
+    LeftFrontWheel.move(1000000); LeftBackWheel.move(-1000000);
+    RightFrontWheel.move(-1000000); RightBackWheel.move(1000000);
   }
 
   void moveSidewaysLeft() {
-    LeftFrontWheel.setSpeed(-wheelSpeed); LeftBackWheel.setSpeed(wheelSpeed);
-    RightFrontWheel.setSpeed(wheelSpeed); RightBackWheel.setSpeed(-wheelSpeed);
+    setAllMaxSpeed(wheelSpeed);
+    LeftFrontWheel.move(-1000000); LeftBackWheel.move(1000000);
+    RightFrontWheel.move(1000000); RightBackWheel.move(-1000000);
   }
 
   void rotateLeft() {
-    LeftFrontWheel.setSpeed(-wheelSpeed); LeftBackWheel.setSpeed(-wheelSpeed);
-    RightFrontWheel.setSpeed(wheelSpeed); RightBackWheel.setSpeed(wheelSpeed);
+    setAllMaxSpeed(wheelSpeed);
+    LeftFrontWheel.move(-1000000); LeftBackWheel.move(-1000000);
+    RightFrontWheel.move(1000000); RightBackWheel.move(1000000);
   }
 
   void rotateRight() {
-    LeftFrontWheel.setSpeed(wheelSpeed); LeftBackWheel.setSpeed(wheelSpeed);
-    RightFrontWheel.setSpeed(-wheelSpeed); RightBackWheel.setSpeed(-wheelSpeed);
+    setAllMaxSpeed(wheelSpeed);
+    LeftFrontWheel.move(1000000); LeftBackWheel.move(1000000);
+    RightFrontWheel.move(-1000000); RightBackWheel.move(-1000000);
   }
 
   void moveRightForward() {
-    LeftFrontWheel.setSpeed(wheelSpeed); LeftBackWheel.setSpeed(0);
-    RightFrontWheel.setSpeed(0); RightBackWheel.setSpeed(wheelSpeed);
+    setAllMaxSpeed(wheelSpeed);
+    LeftFrontWheel.move(1000000); LeftBackWheel.stop();
+    RightFrontWheel.stop(); RightBackWheel.move(1000000);
   }
 
   void moveRightBackward() {
-    LeftFrontWheel.setSpeed(0); LeftBackWheel.setSpeed(-wheelSpeed);
-    RightFrontWheel.setSpeed(-wheelSpeed); RightBackWheel.setSpeed(0);
+    setAllMaxSpeed(wheelSpeed);
+    LeftFrontWheel.stop(); LeftBackWheel.move(-1000000);
+    RightFrontWheel.move(-1000000); RightBackWheel.stop();
   }
 
   void moveLeftForward() {
-    LeftFrontWheel.setSpeed(0); LeftBackWheel.setSpeed(wheelSpeed);
-    RightFrontWheel.setSpeed(wheelSpeed); RightBackWheel.setSpeed(0);
+    setAllMaxSpeed(wheelSpeed);
+    LeftFrontWheel.stop(); LeftBackWheel.move(1000000);
+    RightFrontWheel.move(1000000); RightBackWheel.stop();
   }
 
   void moveLeftBackward() {
-    LeftFrontWheel.setSpeed(-wheelSpeed); LeftBackWheel.setSpeed(0);
-    RightFrontWheel.setSpeed(0); RightBackWheel.setSpeed(-wheelSpeed);
+    setAllMaxSpeed(wheelSpeed);
+    LeftFrontWheel.move(-1000000); LeftBackWheel.stop();
+    RightFrontWheel.stop(); RightBackWheel.move(-1000000);
   }
 
   void stopMoving() {
-    LeftFrontWheel.setSpeed(0); LeftBackWheel.setSpeed(0);
-    RightFrontWheel.setSpeed(0); RightBackWheel.setSpeed(0);
+    LeftFrontWheel.stop(); LeftBackWheel.stop();
+    RightFrontWheel.stop(); RightBackWheel.stop();
+  }
+
+  void setAllMaxSpeed(int s) {
+    LeftFrontWheel.setMaxSpeed(s); LeftBackWheel.setMaxSpeed(s);
+    RightFrontWheel.setMaxSpeed(s); RightBackWheel.setMaxSpeed(s);
   }
 
   void checkBattery() {

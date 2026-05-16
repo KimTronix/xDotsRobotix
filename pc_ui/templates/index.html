@@ -216,10 +216,19 @@
             </div>
 
             <div style="margin-top: 2rem;" class="panel-title"><i data-lucide="database"></i> SEQUENCER</div>
+            <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 10px;">
+                <input type="checkbox" id="learn-box" onchange="toggleLearn(this)">
+                <label for="learn-box" style="font-size: 0.6rem; color: var(--neon-cyan); letter-spacing: 1px;">LEARN MODE</label>
+            </div>
+            <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                <button class="nexus-btn" style="flex: 1" onclick="saveSequence()">SAVE</button>
+                <select id="seq-select" style="flex: 2; background: #000; color: var(--neon-cyan); border: 1px solid var(--border); font-family: 'JetBrains Mono', monospace; font-size: 0.6rem; outline: none;"></select>
+                <input type="number" id="loop-count" value="0" placeholder="Loops (0=inf)" style="width: 50px; background: #000; color: var(--neon-cyan); border: 1px solid var(--border); font-size: 0.6rem; text-align: center;" title="Number of loops (0 for infinite)">
+                <button class="nexus-btn" style="flex: 1" onclick="playSequence()">PLAY</button>
+            </div>
             <div style="display: flex; gap: 10px;">
-                <button class="nexus-btn" style="flex: 1" onclick="send(12)">SAVE</button>
-                <button class="nexus-btn" style="flex: 1" onclick="send(14)">PLAY</button>
-                <button class="nexus-btn" style="flex: 1; border-color: var(--neon-cyan);" onclick="send(15)">DEMO</button>
+                <button class="nexus-btn" style="flex: 1; border-color: #ff3333; color: #ff3333;" onclick="stopSequence()">STOP PLAYBACK</button>
+                <button class="nexus-btn" style="flex: 1; border-color: var(--neon-cyan);" onclick="send(15)">DEMO ROUTINE</button>
             </div>
             
             <div class="sys-log" id="log">
@@ -399,8 +408,70 @@
             while (mon.children.length > 80) mon.removeChild(mon.lastChild);
         }
 
+        let isLearning = false;
+        let recordedSequence = [];
+        let lastCmdTime = 0;
+
+        function toggleLearn(checkbox) {
+            isLearning = checkbox.checked;
+            if (isLearning) {
+                recordedSequence = [];
+                lastCmdTime = Date.now();
+                serialLog('[SYSTEM] Learning started...');
+            } else {
+                serialLog('[SYSTEM] Learning stopped. Ready to save.');
+            }
+        }
+
+        function saveSequence() {
+            if (recordedSequence.length === 0) {
+                alert("No sequence recorded!");
+                return;
+            }
+            let name = prompt("Enter sequence name:");
+            if (name) {
+                socket.emit('save_sequence', { name: name, sequence: recordedSequence });
+                recordedSequence = [];
+                document.getElementById('learn-box').checked = false;
+                isLearning = false;
+            }
+        }
+
+        function playSequence() {
+            let select = document.getElementById('seq-select');
+            let name = select.value;
+            let loops = document.getElementById('loop-count').value || 0;
+            if (name) {
+                socket.emit('play_sequence', { name: name, loops: parseInt(loops) });
+            }
+        }
+
+        function stopSequence() {
+            socket.emit('stop_sequence');
+            send(0); // Also send stop command to Arduino
+        }
+
+        socket.on('sequences_list', (data) => {
+            let select = document.getElementById('seq-select');
+            select.innerHTML = '';
+            data.sequences.forEach(seq => {
+                let opt = document.createElement('option');
+                opt.value = seq;
+                opt.innerHTML = seq;
+                select.appendChild(opt);
+            });
+        });
+
+        // Request sequences on load
+        socket.emit('get_sequences');
+
         function send(cmd) {
             socket.emit('command', { cmd: cmd });
+            if (isLearning) {
+                let now = Date.now();
+                recordedSequence.push({ cmd: cmd, delay: now - lastCmdTime });
+                lastCmdTime = now;
+            }
         }
 
         function startPress(cmd) {
