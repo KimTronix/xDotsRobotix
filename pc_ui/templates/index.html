@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>xDots | NEXUS CONTROL</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --neon-cyan: #00f2ff;
+            --neon-pink: #ff00ff;
+            --bg-dark: #050506;
+            --glass: rgba(15, 15, 20, 0.8);
+            --border: rgba(0, 242, 255, 0.2);
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: #fff;
+            font-family: 'JetBrains Mono', monospace;
+            margin: 0;
+            overflow: hidden;
+            height: 100vh;
+            background-image: 
+                radial-gradient(circle at 50% 50%, rgba(0, 242, 255, 0.05) 0%, transparent 70%),
+                linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%),
+                linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            background-size: 100% 100%, 100% 2px, 3px 100%;
+        }
+
+        /* Glass HUD Elements */
+        .hud-layer {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 10;
+            padding: 1rem;
+            display: grid;
+            grid-template-columns: 280px 1fr 280px;
+            gap: 1rem;
+            box-sizing: border-box;
+        }
+
+        .hud-panel {
+            background: var(--glass);
+            backdrop-filter: blur(8px);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            pointer-events: all;
+            box-shadow: 0 0 15px rgba(0, 242, 255, 0.1);
+            max-height: calc(100vh - 2rem);
+            overflow-y: auto;
+            scrollbar-width: none;
+        }
+
+        .hud-panel::-webkit-scrollbar { display: none; }
+
+        .panel-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.65rem;
+            color: var(--neon-cyan);
+            letter-spacing: 2px;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .panel-title::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: linear-gradient(90deg, var(--neon-cyan), transparent);
+        }
+
+        /* 3D Canvas Background */
+        #canvas-container {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 1;
+        }
+
+        /* Controls */
+        .grid-ctrl {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+        }
+
+        .nexus-btn {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid var(--border);
+            color: var(--neon-cyan);
+            padding: 0.8rem;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .nexus-btn i { width: 18px; height: 18px; }
+
+        .nexus-btn:hover {
+            background: rgba(0, 242, 255, 0.2);
+            box-shadow: 0 0 10px var(--neon-cyan);
+        }
+
+        .nexus-btn:active { transform: scale(0.95); background: var(--neon-cyan); color: #000; }
+
+        .nexus-btn.danger { border-color: var(--neon-pink); color: var(--neon-pink); }
+        .nexus-btn.danger:hover { background: rgba(255, 0, 255, 0.1); box-shadow: 0 0 10px var(--neon-pink); }
+
+        /* Servo HUD */
+        .servo-stat {
+            margin-bottom: 0.8rem;
+        }
+
+        .stat-label {
+            font-size: 0.55rem;
+            color: #888;
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 4px;
+        }
+
+        .stat-val { color: var(--neon-cyan); font-weight: bold; }
+
+        .stat-bar {
+            height: 3px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 1px;
+            overflow: hidden;
+        }
+
+        .stat-fill {
+            height: 100%;
+            background: var(--neon-cyan);
+            width: 50%;
+            box-shadow: 0 0 8px var(--neon-cyan);
+        }
+
+        /* Header HUD */
+        .header-hud {
+            position: fixed;
+            top: 0; width: 100%;
+            display: flex;
+            justify-content: space-between;
+            padding: 0.8rem 1.5rem;
+            z-index: 20;
+            background: linear-gradient(to bottom, var(--bg-dark), transparent);
+            box-sizing: border-box;
+        }
+
+        .sys-log {
+            font-size: 0.6rem;
+            color: #444;
+            max-height: 150px;
+            overflow-y: auto;
+            margin-top: 1rem;
+        }
+
+        .sys-log span { color: var(--neon-cyan); }
+
+        /* Animations */
+        @keyframes scan {
+            from { transform: translateY(-100%); }
+            to { transform: translateY(100%); }
+        }
+
+        .scanline {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(to bottom, transparent, rgba(0, 242, 255, 0.05), transparent);
+            animation: scan 10s linear infinite;
+            pointer-events: none;
+            z-index: 100;
+        }
+    </style>
+</head>
+<body>
+    <div class="scanline"></div>
+    <div id="canvas-container"></div>
+
+    <div class="header-hud">
+        <div style="font-family: 'Orbitron'; font-size: 1.2rem; font-weight: 900; letter-spacing: 5px;">
+            xDots <span style="color: var(--neon-cyan)">NEXUS</span>
+        </div>
+        <div style="text-align: right; font-size: 0.6rem; color: #666;">
+            SYSTEM LATENCY: <span style="color: var(--neon-cyan)">4ms</span><br>
+            SERIAL LINK: <span id="serial-status" style="color: var(--neon-pink)">OFFLINE</span> <span id="active-port" style="color: #444; font-size: 0.5rem"></span>
+        </div>
+    </div>
+
+    <div class="hud-layer">
+        <!-- Left Panel: Movement -->
+        <div class="hud-panel">
+            <div class="panel-title"><i data-lucide="crosshair"></i> NAVIGATION</div>
+            <div class="grid-ctrl">
+                <div></div>
+                <button class="nexus-btn" onmousedown="startPress(2)" onmouseup="stopPress()"><i data-lucide="chevron-up"></i></button>
+                <div></div>
+                
+                <button class="nexus-btn" onmousedown="startPress(4)" onmouseup="stopPress()"><i data-lucide="chevron-left"></i></button>
+                <button class="nexus-btn danger" onclick="send(0)"><i data-lucide="zap-off"></i></button>
+                <button class="nexus-btn" onmousedown="startPress(5)" onmouseup="stopPress()"><i data-lucide="chevron-right"></i></button>
+                
+                <div></div>
+                <button class="nexus-btn" onmousedown="startPress(7)" onmouseup="stopPress()"><i data-lucide="chevron-down"></i></button>
+                <div></div>
+            </div>
+
+            <div style="margin-top: 2rem;" class="panel-title"><i data-lucide="database"></i> SEQUENCER</div>
+            <div style="display: flex; gap: 10px;">
+                <button class="nexus-btn" style="flex: 1" onclick="send(12)">SAVE</button>
+                <button class="nexus-btn" style="flex: 1" onclick="send(14)">PLAY</button>
+                <button class="nexus-btn" style="flex: 1; border-color: var(--neon-cyan);" onclick="send(15)">DEMO</button>
+            </div>
+            
+            <div class="sys-log" id="log">
+                [SYSTEM] Awaiting Serial Handshake...<br>
+                [LINK] Target: /dev/cu.usbserial-120
+            </div>
+        </div>
+
+        <div></div> <!-- Middle spacer for 3D view -->
+
+        <!-- Right Panel: Arm Stats -->
+        <div class="hud-panel">
+            <div class="panel-title"><i data-lucide="activity"></i> KINEMATICS</div>
+            
+            <div id="servo-controls">
+                <div class="servo-stat">
+                    <div class="stat-label">AXIS 01 / BASE <span class="stat-val" id="v1">90°</span></div>
+                    <div class="stat-bar"><div class="stat-fill" id="b1" style="width: 50%"></div></div>
+                    <div style="display: flex; gap: 5px; margin-top: 5px;">
+                        <button class="nexus-btn" style="flex:1;padding:5px" onmousedown="startPress(17)" onmouseup="stopPress()">−</button>
+                        <button class="nexus-btn" style="flex:1;padding:5px" onmousedown="startPress(16)" onmouseup="stopPress()">+</button>
+                    </div>
+                </div>
+                <div class="servo-stat">
+                    <div class="stat-label">AXIS 02 / SHOULDER <span class="stat-val" id="v2">90°</span></div>
+                    <div class="stat-bar"><div class="stat-fill" id="b2" style="width: 50%"></div></div>
+                    <div style="display: flex; gap: 5px; margin-top: 5px;">
+                        <button class="nexus-btn" style="flex:1;padding:5px" onmousedown="startPress(18)" onmouseup="stopPress()">−</button>
+                        <button class="nexus-btn" style="flex:1;padding:5px" onmousedown="startPress(19)" onmouseup="stopPress()">+</button>
+                    </div>
+                </div>
+                <div class="servo-stat">
+                    <div class="stat-label">AXIS 03 / ELBOW <span class="stat-val" id="v3">90°</span></div>
+                    <div class="stat-bar"><div class="stat-fill" id="b3" style="width: 50%"></div></div>
+                    <div style="display: flex; gap: 5px; margin-top: 5px;">
+                        <button class="nexus-btn" style="flex:1;padding:5px" onmousedown="startPress(21)" onmouseup="stopPress()">−</button>
+                        <button class="nexus-btn" style="flex:1;padding:5px" onmousedown="startPress(20)" onmouseup="stopPress()">+</button>
+                    </div>
+                </div>
+                <div class="servo-stat">
+                    <div class="stat-label">AXIS 04 / WRIST 1 <span class="stat-val" id="v4">90°</span></div>
+                    <div class="stat-bar"><div class="stat-fill" id="b4" style="width: 50%"></div></div>
+                    <div style="display: flex; gap: 5px; margin-top: 5px;">
+                        <button class="nexus-btn" style="flex:1;padding:5px" onmousedown="startPress(22)" onmouseup="stopPress()">−</button>
+                        <button class="nexus-btn" style="flex:1;padding:5px" onmousedown="startPress(23)" onmouseup="stopPress()">+</button>
+                    </div>
+                </div>
+                <div class="servo-stat">
+                    <div class="stat-label">AXIS 05 / WRIST 2 <span class="stat-val" id="v5">90°</span></div>
+                    <div class="stat-bar"><div class="stat-fill" id="b5" style="width: 50%"></div></div>
+                    <div style="display: flex; gap: 5px; margin-top: 5px;">
+                        <button class="nexus-btn" style="flex:1;padding:5px" onmousedown="startPress(24)" onmouseup="stopPress()">−</button>
+                        <button class="nexus-btn" style="flex:1;padding:5px" onmousedown="startPress(25)" onmouseup="stopPress()">+</button>
+                    </div>
+                </div>
+                <div class="servo-stat">
+                    <div class="stat-label">AXIS 06 / GRIPPER <span class="stat-val" id="v6">90°</span></div>
+                    <div class="stat-bar"><div class="stat-fill" id="b6" style="width: 50%"></div></div>
+                    <div style="display: flex; gap: 5px; margin-top: 5px;">
+                        <button class="nexus-btn" style="flex:1;padding:5px" onmousedown="startPress(27)" onmouseup="stopPress()">−</button>
+                        <button class="nexus-btn" style="flex:1;padding:5px" onmousedown="startPress(26)" onmouseup="stopPress()">+</button>
+                    </div>
+                </div>
+            </div>
+
+            <div style="margin-top: 0.8rem;">
+                <select id="port-select" onchange="setPort()" style="width: 100%; background: #000; color: var(--neon-cyan); border: 1px solid var(--border); padding: 6px; font-family: 'JetBrains Mono', monospace; font-size: 0.6rem;">
+                    <option>/dev/cu.usbserial-120</option>
+                </select>
+                <div style="display: flex; gap: 5px; margin-top: 8px;">
+                    <button class="nexus-btn" style="flex: 2; font-size: 0.6rem;" onclick="refreshPorts()">RE-INITIALIZE</button>
+                    <button class="nexus-btn danger" style="flex: 1; font-size: 0.6rem;" onclick="resetPorts()">RESET PORT</button>
+                </div>
+
+                <!-- Serial Monitor -->
+                <div style="margin-top: 10px;">
+                    <div style="font-family: 'Orbitron', sans-serif; font-size: 0.55rem; color: var(--neon-cyan); letter-spacing: 2px; margin-bottom: 6px; display:flex; justify-content:space-between; align-items:center;">
+                        SERIAL MONITOR
+                        <button onclick="document.getElementById('serial-monitor').innerHTML=''" style="background:none;border:none;color:#444;cursor:pointer;font-size:0.55rem;">CLEAR</button>
+                    </div>
+                    <div id="serial-monitor" style="
+                        background: rgba(0,0,0,0.6);
+                        border: 1px solid rgba(0,242,255,0.15);
+                        border-radius: 4px;
+                        padding: 8px;
+                        height: 110px;
+                        overflow-y: auto;
+                        font-family: 'JetBrains Mono', monospace;
+                        font-size: 0.55rem;
+                        color: #00f2ff;
+                        scrollbar-width: thin;
+                        scrollbar-color: #00f2ff22 transparent;
+                    "></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        lucide.createIcons();
+        const socket = io();
+        let pressInterval = null;
+
+        // THREE.JS SCENE SETUP
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+        // Grid Helper
+        const grid = new THREE.GridHelper(20, 20, 0x00f2ff, 0x111111);
+        scene.add(grid);
+
+        // Robot Arm Mockup (Simplified)
+        const armGroup = new THREE.Group();
+        const base = new THREE.Mesh(new THREE.BoxGeometry(2, 0.5, 2), new THREE.MeshStandardMaterial({ color: 0x222222 }));
+        armGroup.add(base);
+
+        const shoulder = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 2), new THREE.MeshStandardMaterial({ color: 0x00f2ff, emissive: 0x00f2ff, emissiveIntensity: 0.2 }));
+        shoulder.position.y = 1;
+        armGroup.add(shoulder);
+
+        const forearm = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 3), new THREE.MeshStandardMaterial({ color: 0x444444 }));
+        forearm.position.y = 2.5;
+        forearm.rotation.x = Math.PI / 4;
+        armGroup.add(forearm);
+
+        scene.add(armGroup);
+
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        scene.add(ambientLight);
+        const pointLight = new THREE.PointLight(0x00f2ff, 1);
+        pointLight.position.set(5, 5, 5);
+        scene.add(pointLight);
+
+        camera.position.set(10, 5, 10);
+        camera.lookAt(0, 2, 0);
+
+        function animate() {
+            requestAnimationFrame(animate);
+            armGroup.rotation.y += 0.005; // Slow rotation for "boring" fix
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        // Servo angle tracking
+        const servoAngles = [90, 90, 90, 90, 90, 90];
+        const servoIds = [[1,16,17],[2,19,18],[3,20,21],[4,23,22],[5,25,24],[6,26,27]];
+
+        function updateServoUI(idx, deg) {
+            servoAngles[idx] = deg;
+            const el = document.getElementById(`v${idx+1}`);
+            const bar = document.getElementById(`b${idx+1}`);
+            if (el) el.textContent = deg + '°';
+            if (bar) bar.style.width = (deg / 180 * 100) + '%';
+        }
+
+        function serialLog(line) {
+            const mon = document.getElementById('serial-monitor');
+            if (!mon) return;
+            // Parse S: lines to update servo UI
+            if (line.startsWith('S:')) {
+                const parts = line.slice(2).split(',').map(Number);
+                parts.forEach((v, i) => { if (!isNaN(v) && i < 6) updateServoUI(i, v); });
+            }
+            const color = line.startsWith('[ERROR]') || line.startsWith('[LOST]') ? '#ff0055' :
+                          line.startsWith('[NEXUS]') ? '#00ff88' : '#00f2ff';
+            const div = document.createElement('div');
+            div.style.color = color;
+            div.style.borderBottom = '1px solid rgba(255,255,255,0.03)';
+            div.style.paddingBottom = '2px';
+            div.style.marginBottom = '2px';
+            div.textContent = line;
+            mon.insertBefore(div, mon.firstChild);
+            // Keep max 80 lines
+            while (mon.children.length > 80) mon.removeChild(mon.lastChild);
+        }
+
+        function send(cmd) {
+            socket.emit('command', { cmd: cmd });
+        }
+
+        function startPress(cmd) {
+            send(cmd);
+            if (pressInterval) clearInterval(pressInterval);
+            pressInterval = setInterval(() => send(cmd), 80);
+        }
+
+        function stopPress() {
+            if (pressInterval) {
+                clearInterval(pressInterval);
+                pressInterval = null;
+            }
+            send(0);
+        }
+
+        function refreshPorts() {
+            socket.emit('get_ports');
+        }
+
+        function resetPorts() {
+            socket.emit('reset_ports');
+            serialLog('[SYSTEM] Terminating conflicting processes...');
+            setTimeout(refreshPorts, 1000);
+        }
+
+        function setPort() {
+            const port = document.getElementById('port-select').value;
+            socket.emit('set_port', { port: port });
+            serialLog(`[NEXUS] Switching to ${port}...`);
+        }
+
+        socket.on('status', (data) => {
+            const status = document.getElementById('serial-status');
+            const portText = document.getElementById('active-port');
+            if (data.connected) {
+                status.textContent = 'ONLINE';
+                status.style.color = '#00f2ff';
+                portText.textContent = `(${data.port})`;
+            } else {
+                status.textContent = 'OFFLINE';
+                status.style.color = '#ff00ff';
+                portText.textContent = '';
+            }
+        });
+
+        socket.on('serial_rx', (data) => {
+            serialLog(data.line);
+        });
+
+        socket.on('ports_list', (data) => {
+            const sel = document.getElementById('port-select');
+            sel.innerHTML = '';
+            data.ports.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p; opt.textContent = p;
+                if (p.includes('usbserial') || p.includes('usbmodem')) opt.selected = true;
+                sel.appendChild(opt);
+            });
+        });
+
+        // Auto-refresh ports on load
+        socket.on('connect', () => { socket.emit('get_ports'); });
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Keyboard Controls - Dual Stick Game-like control
+        const keyMap = {
+            // DRIVETRAIN (Right Hand)
+            'arrowup': 2, 'arrowdown': 7, 'arrowleft': 4, 'arrowright': 5,
+            
+            // ARM BASE & ELBOW (Left Hand)
+            'a': 17, 'd': 16,                  // Base Left/Right
+            'w': 20, 's': 21,                  // Elbow Up/Down
+
+            // OTHER ARM JOINTS
+            'q': 19, 'e': 18,                  // Shoulder Up/Down
+            'z': 23, 'x': 22,                  // Wrist 1 Up/Down
+            'c': 25, 'v': 24,                  // Wrist 2 Left/Right
+            ' ': 26, 'shift': 27               // Gripper Close/Open
+        };
+
+        window.addEventListener('keydown', (e) => {
+            const key = e.key.toLowerCase();
+            if (keyMap[key] !== undefined) {
+                if (key === ' ' || key === 'shift') e.preventDefault();
+                send(keyMap[key]); // Fire continuously as fast as the OS repeats!
+                serialLog(`[KEY] ${e.key.toUpperCase()} pressed`);
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            const key = e.key.toLowerCase();
+            if (keyMap[key] !== undefined) {
+                send(0); // Stop when released
+            }
+        });
+    </script>
+</body>
+</html>
