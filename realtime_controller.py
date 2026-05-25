@@ -25,7 +25,8 @@ class RealtimeController:
             'j': 9, 'l': 10,
             '1': 16, '!': 17, '2': 19, '@': 18,
             '3': 20, '#': 21, '4': 23, '$': 22,
-            '5': 25, '%': 24, '6': 26, '^': 27
+            '5': 25, '%': 24, '6': 26, '^': 27,
+            'b': 26, 'n': 27
         }
 
         self.setup_ui()
@@ -48,7 +49,7 @@ class RealtimeController:
         self.cmd_display = tk.Label(self.root, text="IDLE", font=("Courier", 30, "bold"), fg="#fff", bg="#1a1a1b", width=10, height=2)
         self.cmd_display.pack(pady=30)
 
-        self.help = tk.Label(self.root, text="W/A/S/D: Move\n1-6: Servos (+)\nShift+1-6: Servos (-)", font=("Helvetica", 10), fg="#666", bg="#0a0a0b")
+        self.help = tk.Label(self.root, text="W/A/S/D: Move\n1-6: Servos (+)\nShift+1-6: Servos (-)\nB/N: Gripper Close/Open", font=("Helvetica", 10), fg="#666", bg="#0a0a0b")
         self.help.pack(side="bottom", pady=20)
 
     def connect_serial(self):

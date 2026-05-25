@@ -7,7 +7,7 @@ import time
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
-PORT = '/dev/cu.usbserial-1130'
+PORT = '/dev/cu.usbserial-120'
 BAUD_RATE = 115200
 ser = None
 

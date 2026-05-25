@@ -38,6 +38,8 @@ COMMANDS = {
     '%': 24,  # S5 - (Shift+5)
     '6': 26,  # S6 +
     '^': 27,  # S6 - (Shift+6)
+    'b': 26,  # Gripper Close (B)
+    'n': 27,  # Gripper Open (N)
     
     # Logic
     'v': 12,  # Save Step
@@ -113,6 +115,7 @@ def main():
     print("  Space/X: Stop")
     print("  1-6: Adjust Servos (+)")
     print("  Shift+1-6 (!@#$%^): Adjust Servos (-)")
+    print("  B/N: Gripper Close/Open")
     print("  V: Save Step")
     print("  R: Run Recorded Steps")
     print("  T: Run Self-Test Sequence")

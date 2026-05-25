@@ -19,12 +19,14 @@ def run_simple():
     print("\nControls (Type key + Enter):")
     print("  W/A/S/D: Move")
     print("  1-6: Move Servos")
+    print("  B/N: Gripper Close/Open")
     print("  X: Stop")
     print("  Q: Quit")
 
     COMMANDS = {
         'w': 2, 's': 7, 'a': 4, 'd': 5, 'x': 0,
-        '1': 16, '2': 19, '3': 20, '4': 23, '5': 25, '6': 26
+        '1': 16, '2': 19, '3': 20, '4': 23, '5': 25, '6': 26,
+        'b': 26, 'n': 27
     }
 
     try:

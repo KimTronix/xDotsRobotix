@@ -12,7 +12,8 @@ BAUD = 38400
 COMMANDS = {
     'w': 2, 's': 7, 'a': 4, 'd': 5,
     'x': 0, ' ': 0,
-    '1': 16, '2': 19, '3': 20, '4': 23, '5': 25, '6': 26
+    '1': 16, '2': 19, '3': 20, '4': 23, '5': 25, '6': 26,
+    'b': 26, 'n': 27
 }
 
 def run_terminal_realtime():
@@ -21,7 +22,7 @@ def run_terminal_realtime():
         ser = serial.Serial(PORT, BAUD, timeout=0.1)
         time.sleep(2)
         print("Connected! DRIVE MODE ACTIVE (No Enter needed).")
-        print("Use W/A/S/D to move, 1-6 for Servos. Press 'Q' to Quit.")
+        print("Use W/A/S/D to move, 1-6 for Servos, B/N for Gripper. Press 'Q' to Quit.")
     except Exception as e:
         print(f"Error: {e}")
         return

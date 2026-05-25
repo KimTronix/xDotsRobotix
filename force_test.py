@@ -3,7 +3,7 @@ import time
 import sys
 
 # Configuration
-PORT = '/dev/cu.usbserial-120' # Update this!
+PORT = '/dev/cu.usbserial-1120' # Update this!
 BAUD_RATE = 38400
 
 def force_test():

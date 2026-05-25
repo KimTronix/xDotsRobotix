@@ -555,13 +555,14 @@
             'q': 19, 'e': 18,                  // Shoulder Up/Down
             'z': 23, 'x': 22,                  // Wrist 1 Up/Down
             'c': 25, 'v': 24,                  // Wrist 2 Left/Right
-            ' ': 26, 'shift': 27               // Gripper Close/Open
+            ' ': 26, 'shift': 27,              // Gripper Close/Open
+            'b': 26, 'n': 27                   // Gripper Close/Open (B/N alternative)
         };
 
         window.addEventListener('keydown', (e) => {
             const key = e.key.toLowerCase();
             if (keyMap[key] !== undefined) {
-                if (key === ' ' || key === 'shift') e.preventDefault();
+                if (key === ' ' || key === 'shift' || key === 'b' || key === 'n') e.preventDefault();
                 send(keyMap[key]); // Fire continuously as fast as the OS repeats!
                 serialLog(`[KEY] ${e.key.toUpperCase()} pressed`);
             }
